@@ -18,6 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+
     steps:
       - uses: actions/checkout@v4
 
@@ -37,6 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+
     strategy:
       matrix:
         python-version: ["3.12", "3.13"]
@@ -73,7 +75,28 @@ jobs:
       security-events: write
       actions: read
 
-    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan repository with Trivy
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret,misconfig
+          severity: HIGH,CRITICAL
+          limit-severities-for-sarif: true
+          ignore-unfixed: true
+          exit-code: "1"
+          format: sarif
+          output: trivy-results.sarif
+
+      - name: Upload SARIF
+        if: always() && hashFiles('trivy-results.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-results.sarif
+
   build:
     needs: [lint, test, scan-repo]
     runs-on: ubuntu-latest
@@ -107,7 +130,7 @@ jobs:
           image-ref: fretly:scan
           severity: HIGH,CRITICAL
           ignore-unfixed: true
-          exit-code: '1'
+          exit-code: "1"
           format: table
 
       - name: Generate CycloneDX SBOM
@@ -143,27 +166,3 @@ jobs:
 
           docker push "$IMAGE:sha-$SHORT_SHA"
           docker push "$IMAGE:latest"
-
-
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Scan repository with Trivy
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
-        with:
-          scan-type: fs
-          scan-ref: .
-          scanners: vuln,secret,misconfig
-          severity: HIGH,CRITICAL
-          limit-severities-for-sarif: true
-          ignore-unfixed: true
-          exit-code: "1"
-          format: sarif
-          output: trivy-results.sarif
-
-      - name: Upload SARIF
-        if: always() && hashFiles('trivy-results.sarif') != ''
-        uses: github/codeql-action/upload-sarif@v4
-        with:
-          sarif_file: trivy-results.sarif
